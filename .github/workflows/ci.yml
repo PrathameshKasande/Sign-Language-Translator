@@ -1,0 +1,48 @@
+name: Build and Validate Docker Container
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  docker-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: sign-language-translator:ci
+
+      - name: Test Container Startup & Health
+        run: |
+          docker run -d -p 5000:5000 -e CUDA_VISIBLE_DEVICES="-1" --name test_app sign-language-translator:ci
+          sleep 20
+          echo "=== Container Startup Logs ==="
+          docker logs test_app
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/ || echo "000")
+          echo "HTTP Response Status Code: $STATUS_CODE"
+          if [ "$STATUS_CODE" -eq 200 ] || [ "$STATUS_CODE" -eq 302 ]; then
+            echo "SUCCESS: Flask app booted and responded correctly!"
+          else
+            echo "FAILURE: Application failed smoke test with status $STATUS_CODE"
+            docker logs test_app
+            exit 1
+          fi
+
+      - name: Cleanup Test Container
+        if: always()
+        run: |
+          docker rm -f test_app || true
