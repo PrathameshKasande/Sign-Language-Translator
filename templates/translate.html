@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign Language To Text & Speech Conversion</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #ececec;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 15px 30px;
+            user-select: none;
+        }
+        .title-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 16px;
+            font-weight: bold;
+            color: #222;
+            margin-bottom: 20px;
+        }
+        .feed-container {
+            display: flex;
+            justify-content: center;
+            gap: 35px;
+            margin-bottom: 30px;
+        }
+        .display-frame {
+            width: 440px;
+            height: 350px;
+            background-color: #ffffff;
+            border: 1px solid #d0d0d0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        #skeletonCanvas {
+            width: 100%;
+            height: 100%;
+            background-color: #ffffff;
+        }
+        .bottom-section {
+            width: 915px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .output-fields {
+            font-size: 28px;
+            font-weight: bold;
+            color: #000000;
+            line-height: 2.2;
+        }
+        .suggestions-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 5px;
+        }
+        .suggestions-title {
+            color: #e50914;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .suggestion-box {
+            min-width: 55px;
+            height: 42px;
+            border: 2px solid #555555;
+            background: transparent;
+            font-family: inherit;
+            font-size: 22px;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
+            padding: 0 10px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .suggestion-box:hover { background-color: #ddd; }
+        .control-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding-top: 15px;
+        }
+        .btn-speak {
+            background-color: #008000;
+            color: #ffffff;
+            border: none;
+            font-family: inherit;
+            font-size: 22px;
+            padding: 8px 30px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .btn-clear {
+            background-color: #ff0000;
+            color: #ffffff;
+            border: none;
+            font-family: inherit;
+            font-size: 22px;
+            padding: 8px 30px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .back-link {
+            text-decoration: none;
+            color: #444;
+            font-weight: bold;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="title-bar">
+        <span>🍂 Sign Language To Text & Speech Conversion</span>
+        <a href="/home" class="back-link">&larr; Back to Dashboard</a>
+    </div>
+
+    <div class="feed-container">
+        <div class="display-frame">
+            <video id="webcam" autoplay playsinline muted></video>
+            <canvas id="hiddenCapture" width="440" height="350" style="display:none;"></canvas>
+        </div>
+        <div class="display-frame">
+            <canvas id="skeletonCanvas" width="400" height="400"></canvas>
+        </div>
+    </div>
+
+    <div class="bottom-section">
+        <div class="output-fields">
+            <div>Character : &nbsp;<span id="charVal"></span></div>
+            <div>Sentence &nbsp;: &nbsp;<span id="sentenceVal"></span></div>
+            <div class="suggestions-row">
+                <span class="suggestions-title">Suggestions :</span>
+                <button class="suggestion-box" id="sug0" onclick="chooseWord(0)"></button>
+                <button class="suggestion-box" id="sug1" onclick="chooseWord(1)"></button>
+                <button class="suggestion-box" id="sug2" onclick="chooseWord(2)"></button>
+                <button class="suggestion-box" id="sug3" onclick="chooseWord(3)"></button>
+            </div>
+        </div>
+
+        <div class="control-buttons">
+            <button class="btn-speak" onclick="speakText()">Speak</button>
+            <button class="btn-clear" onclick="clearAll()">Clear</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const hiddenCanvas = document.getElementById('hiddenCapture');
+        const hCtx = hiddenCanvas.getContext('2d');
+        const skCanvas = document.getElementById('skeletonCanvas');
+        const sCtx = skCanvas.getContext('2d');
+
+        const charVal = document.getElementById('charVal');
+        const sentenceVal = document.getElementById('sentenceVal');
+        const sugBtns = [
+            document.getElementById('sug0'),
+            document.getElementById('sug1'),
+            document.getElementById('sug2'),
+            document.getElementById('sug3')
+        ];
+
+        let currentWord = "";
+        let fullSentence = "";
+        let lastChar = "";
+        let charHoldCount = 0;
+        let emptyHandCount = 0;
+        let suggestionsList = [];
+        let isSending = false;
+
+        // Activate browser webcam
+        navigator.mediaDevices.getUserMedia({ video: { width: 440, height: 350 } })
+            .then(stream => {
+                video.srcObject = stream;
+                setInterval(captureAndSend, 250);
+            })
+            .catch(err => {
+                alert("Camera permission is needed: " + err.message);
+            });
+
+        async function captureAndSend() {
+            if (isSending || !video.videoWidth) return;
+            isSending = true;
+
+            hCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+            const frameData = hiddenCanvas.toDataURL('image/jpeg', 0.6);
+
+            try {
+                const res = await fetch('/predict_frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: frameData, word: currentWord })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+
+                    // Render skeleton
+                    if (data.skeleton) {
+                        const img = new Image();
+                        img.onload = () => {
+                            sCtx.clearRect(0, 0, skCanvas.width, skCanvas.height);
+                            sCtx.drawImage(img, 0, 0, skCanvas.width, skCanvas.height);
+                        };
+                        img.src = data.skeleton;
+                    }
+
+                    // Hand detected -> Evaluate character
+                    if (data.character && data.character !== "No Hand Detected") {
+                        emptyHandCount = 0;
+                        charVal.innerText = data.character;
+
+                        if (data.character === lastChar) {
+                            charHoldCount++;
+                            // Held steadily for 4 ticks (~1 sec) -> Append character
+                            if (charHoldCount === 4) {
+                                currentWord += data.character;
+                                updateDisplay();
+                            }
+                        } else {
+                            lastChar = data.character;
+                            charHoldCount = 0;
+                        }
+                    } else {
+                        // No hand present -> Space gesture trigger after hand drops
+                        charVal.innerText = "";
+                        lastChar = "";
+                        charHoldCount = 0;
+                        emptyHandCount++;
+
+                        // If hand stays away for 5 ticks (~1.25 sec) and word exists, commit space
+                        if (emptyHandCount === 5 && currentWord.length > 0) {
+                            fullSentence = (fullSentence + " " + currentWord).trim();
+                            currentWord = "";
+                            updateDisplay();
+                        }
+                    }
+
+                    // Render suggestions
+                    suggestionsList = data.suggestions || [];
+                    for (let i = 0; i < 4; i++) {
+                        sugBtns[i].innerText = suggestionsList[i] || "";
+                    }
+                }
+            } catch (e) {
+                console.error("Frame failed:", e);
+            } finally {
+                isSending = false;
+            }
+        }
+
+        function updateDisplay() {
+            sentenceVal.innerText = (fullSentence + " " + currentWord).trim();
+        }
+
+        function chooseWord(idx) {
+            if (suggestionsList[idx]) {
+                fullSentence = (fullSentence + " " + suggestionsList[idx]).trim();
+                currentWord = "";
+                updateDisplay();
+                for (let i = 0; i < 4; i++) sugBtns[i].innerText = "";
+            }
+        }
+
+        function clearAll() {
+            currentWord = "";
+            fullSentence = "";
+            lastChar = "";
+            charHoldCount = 0;
+            emptyHandCount = 0;
+            charVal.innerText = "";
+            sentenceVal.innerText = "";
+            for (let i = 0; i < 4; i++) sugBtns[i].innerText = "";
+            sCtx.fillStyle = '#ffffff';
+            sCtx.fillRect(0, 0, skCanvas.width, skCanvas.height);
+        }
+
+        function speakText() {
+            const text = sentenceVal.innerText.trim();
+            if (!text) return;
+            const utter = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(utter);
+        }
+    </script>
+</body>
+</html>

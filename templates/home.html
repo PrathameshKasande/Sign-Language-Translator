@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Language English Converter</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(115deg, #c4f7ce 0%, #ffffff 40%, #ffc0b3 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header-banner {
+            background: #2b3542;
+            color: #ffffff;
+            width: 100%;
+            text-align: center;
+            padding: 30px 20px 25px;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .header-banner h1 { font-size: 32px; font-weight: 600; margin-bottom: 8px; }
+        .header-banner p { font-size: 15px; color: #b0b8c4; }
+        .main-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            width: 100%;
+        }
+        .card-box {
+            background: #ffffff;
+            width: 100%;
+            max-width: 680px;
+            padding: 45px 50px;
+            border-radius: 20px;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+        .card-box h2 { font-size: 28px; font-weight: 700; color: #1e293b; margin-bottom: 12px; }
+        .card-box .subtitle { font-size: 14px; color: #64748b; margin-bottom: 35px; }
+        .btn-group { display: flex; flex-direction: column; gap: 15px; width: 80%; margin: 0 auto; }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            transition: opacity 0.2s;
+        }
+        .btn-start { background-color: #1b8152; color: #ffffff; }
+        .btn-start:hover { background-color: #156942; }
+        .btn-stop { background-color: #f5b000; color: #1e293b; }
+        .btn-logout { background-color: #6c757d; color: #ffffff; }
+    </style>
+</head>
+<body>
+    <div class="header-banner">
+        <h1>Sign Language English Converter</h1>
+        <p>Empowering communication through technology</p>
+    </div>
+
+    <div class="main-content">
+        <div class="card-box">
+            <h2>Welcome, {{ user_email }}</h2>
+            <p class="subtitle">Click below to start or stop the sign language recognition window.</p>
+            <div class="btn-group">
+                <a href="/translate" class="btn btn-start">Start Application</a>
+                <a href="/home" class="btn btn-stop">Stop Application</a>
+                <a href="/logout" class="btn btn-logout">Logout</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

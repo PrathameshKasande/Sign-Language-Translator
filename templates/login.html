@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sign Language Converter</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #74ebd5 0%, #acb6e5 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: #ffffff;
+            width: 380px;
+            padding: 40px 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h2 { font-size: 26px; color: #222; margin-bottom: 25px; }
+        .form-group { text-align: left; margin-bottom: 18px; }
+        label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
+        input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #dcdcdc;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+        input:focus { border-color: #0d6efd; }
+        .btn-login {
+            width: 100%;
+            background-color: #0d6efd;
+            color: #fff;
+            border: none;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-login:hover { background-color: #0b5ed7; }
+        .footer-link { margin-top: 20px; font-size: 13px; color: #555; }
+        .footer-link a { color: #0d6efd; text-decoration: none; }
+        .error-msg { color: #dc3545; font-size: 13px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Login</h2>
+        {% if error %}
+            <div class="error-msg">{{ error }}</div>
+        {% endif %}
+        <form action="/login" method="POST">
+            <div class="form-group">
+                <label>Email address</label>
+                <input type="email" name="email" required placeholder="name@domain.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required placeholder="Enter password">
+            </div>
+            <button type="submit" class="btn-login">Login</button>
+        </form>
+        <div class="footer-link">
+            No account? <a href="/register">Register here</a>
+        </div>
+    </div>
+</body>
+</html>

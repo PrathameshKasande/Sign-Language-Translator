@@ -1,0 +1,10 @@
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+venv/
+env/
+login_history.log
+white.jpg
+data/
