@@ -10,6 +10,8 @@
 
 An end-to-end computer vision and deep learning web platform engineered to bridge communication barriers for the **Deaf and Hard of Hearing (DHH) community**. The application captures real-time hand gestures via any standard webcam, translates sign language into text, and synthesizes voice feedback with high reliability.
 
+Live Link : https://sign-language-translator-0uyc.onrender.com
+
 ---
 
 ## 🎯 Problem Statement
@@ -109,59 +111,47 @@ Method 1: Local Setup (Recommended for Development)
 Clone the repository:
 
 Bash
-git clone [https://github.com/PrathameshKasande/Sign-Language-Translator.git](https://github.com/PrathameshKasande/Sign-Language-Translator.git)
+git clone [https://github.com/...../Sign-Language-Translator.git
 cd Sign-Language-Translator
 Set up a Python virtual environment:
 
 On Windows (Command Prompt / PowerShell):
 
-DOS
 python -m venv venv
 venv\Scripts\activate
-On macOS / Linux:
 
-Bash
-python3 -m venv venv
-source venv/bin/activate
-Install system dependencies (Linux / Ubuntu only):
 
-Bash
-sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 espeak ffmpeg
-(Windows and macOS handle these automatically or do not require them for basic inference).
+### Install Python dependencies:
+---
 
-Install Python dependencies:
-
-Bash
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
+
+---
+
 Start the Flask server:
 
-Bash
 python app.py
 Access the web app:
 
 Open your browser and navigate to: http://localhost:5000 (or http://127.0.0.1:5000).
 
-When prompted by your browser, click Allow to give camera access.
 
-Position your hand within the frame to view real-time predictions.
 
 Method 2: Run via Docker (Zero Configuration)
 If you have Docker Desktop installed, you can build and run the entire environment inside an isolated container without installing Python libraries manually:
 
 Clone and enter the directory:
 
-Bash
-git clone [https://github.com/PrathameshKasande/Sign-Language-Translator.git](https://github.com/PrathameshKasande/Sign-Language-Translator.git)
-cd Sign-Language-Translator
+
 Build the Docker image:
 
-Bash
 docker build -t sign-language-translator .
+
 Run the container:
 
-Bash
 docker run -d -p 5000:5000 --name sl_translator sign-language-translator
+
 Open in browser:
 Navigate to http://localhost:5000 in your web browser.
 
