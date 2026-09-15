@@ -10,7 +10,7 @@
 
 An end-to-end computer vision and deep learning web platform engineered to bridge communication barriers for the **Deaf and Hard of Hearing (DHH) community**. The application captures real-time hand gestures via any standard webcam, translates sign language into text, and synthesizes voice feedback with high reliability.
 
-Live Link : https://sign-language-translator-0uyc.onrender.com
+Live Link : https://sign-language-translator-sa97.onrender.com
 
 ---
 
