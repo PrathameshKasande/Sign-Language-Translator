@@ -1,124 +1,110 @@
-import base64
+import os
 import cv2
 import numpy as np
-import tensorflow as tf
+import base64
+from keras.models import load_model
 from cvzone.HandTrackingModule import HandDetector
+import enchant
 
-# Load trained deep learning model
-model = tf.keras.models.load_model("models/sign_language_model.keras")
-detector = HandDetector(maxHands=1, detectionCon=0.8)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "sign_model_26class.h5")
 
-# Alphabet classes A-Z
-LABELS = [chr(i) for i in range(ord('A'), ord('Z') + 1)]
+# Initialize model and detectors
+model = load_model(MODEL_PATH, compile=False)
+hd = HandDetector(maxHands=1)
+hd2 = HandDetector(maxHands=1)
+dict_checker = enchant.Dict("en_US")
+OFFSET = 29
 
-# State Buffers
-current_character = ""
-sentence = ""
-temp_char = ""
-char_hold_count = 0
-CONFIRMATION_FRAMES = 6   # Hold sign for 6 consecutive frames to confirm letter
-no_hand_counter = 0
-SPACE_THRESHOLD = 18      # ~1.2s without hand adds a space
+def predict_frame(input_data, current_word=""):
+    try:
+        if isinstance(input_data, (bytes, bytearray)):
+            np_arr = np.frombuffer(input_data, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        else:
+            frame = input_data
 
-# Skeleton joint connections for 21 MediaPipe landmarks
-SKELETON_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4),           # Thumb
-    (0, 5), (5, 6), (6, 7), (7, 8),           # Index
-    (5, 9), (9, 10), (10, 11), (11, 12),      # Middle
-    (9, 13), (13, 14), (14, 15), (15, 16),    # Ring
-    (13, 17), (17, 18), (18, 19), (19, 20),   # Pinky
-    (0, 17)                                   # Palm Base
-]
+        if frame is None:
+            return {"character": "No Hand Detected", "action": "none", "confidence": 0.0, "skeleton": None, "suggestions": []}
 
-def process_frame(frame):
-    global current_character, sentence, temp_char, char_hold_count, no_hand_counter
+        predicted_char = "No Hand Detected"
+        detected_action = "none"   # can be: 'next', 'space', or 'none'
+        confidence = 0.0
+        white_canvas = np.ones((400, 400, 3), np.uint8) * 255
 
-    # Pure white canvas for the 2nd skeleton window
-    white_skeleton = np.ones((300, 300, 3), dtype=np.uint8) * 255
-    hands, img = detector.findHands(frame, draw=False)
+        # Detect primary hand
+        hands, _ = hd.findHands(frame, draw=False, flipType=True)
+        if hands:
+            hand = hands[0]
+            x, y, w, h = hand['bbox']
+            h_f, w_f, _ = frame.shape
 
-    if hands:
-        no_hand_counter = 0
-        hand = hands[0]
-        lmList = hand["lmList"]
-        x, y, w, h = hand["bbox"]
+            # Check for gestures: Next & Space
+            fingers = hd.fingersUp(hand)  # Returns [thumb, index, middle, ring, pinky]
 
-        # 1. Normalize and draw green hand skeleton onto white canvas
-        if lmList:
-            all_x = [pt[0] for pt in lmList]
-            all_y = [pt[1] for pt in lmList]
-            min_x, max_x = min(all_x), max(all_x)
-            min_y, max_y = min(all_y), max(all_y)
-            span_w = max(1, max_x - min_x)
-            span_h = max(1, max_y - min_y)
-            scale = min(220 / span_w, 220 / span_h)
-
-            norm_pts = []
-            for pt in lmList:
-                px = int(150 + (pt[0] - (min_x + span_w / 2)) * scale)
-                py = int(150 + (pt[1] - (min_y + span_h / 2)) * scale)
-                norm_pts.append((px, py))
-
-            for p1, p2 in SKELETON_CONNECTIONS:
-                cv2.line(white_skeleton, norm_pts[p1], norm_pts[p2], (0, 200, 0), 3)
-
-        # 2. Crop hand region and predict character
-        img_h, img_w, _ = img.shape
-        y1, y2 = max(0, y - 20), min(img_h, y + h + 20)
-        x1, x2 = max(0, x - 20), min(img_w, x + w + 20)
-        img_crop = img[y1:y2, x1:x2]
-
-        if img_crop.size != 0:
-            img_resize = cv2.resize(img_crop, (64, 64))
-            img_array = np.expand_dims(img_resize / 255.0, axis=0)
-
-            predictions = model.predict(img_array, verbose=0)
-            pred_idx = int(np.argmax(predictions))
-            conf = float(predictions[0][pred_idx])
-
-            if conf > 0.75:
-                pred_char = LABELS[pred_idx]
-                current_character = pred_char
-
-                # Temporal stability: only append if held steady
-                if pred_char == temp_char:
-                    char_hold_count += 1
-                    if char_hold_count == CONFIRMATION_FRAMES:
-                        sentence += pred_char
-                else:
-                    temp_char = pred_char
-                    char_hold_count = 0
+            # 1. NEXT GESTURE: All 5 fingers fully extended upright [1, 1, 1, 1, 1]
+            if fingers == [1, 1, 1, 1, 1]:
+                detected_action = "next"
+                predicted_char = "[NEXT]"
+            # 2. SPACE GESTURE: Completely closed fist [0, 0, 0, 0, 0]
+            elif fingers == [0, 0, 0, 0, 0]:
+                detected_action = "space"
+                predicted_char = "[SPACE]"
             else:
-                char_hold_count = 0
-    else:
-        # Hand out of frame: auto-space trigger
-        current_character = ""
-        char_hold_count = 0
-        temp_char = ""
-        no_hand_counter += 1
+                # 3. Regular Letter Detection
+                y1, y2 = max(0, y - OFFSET), min(h_f, y + h + OFFSET)
+                x1, x2 = max(0, x - OFFSET), min(w_f, x + w + OFFSET)
+                cropped = frame[y1:y2, x1:x2]
 
-        if no_hand_counter == SPACE_THRESHOLD:
-            if sentence and not sentence.endswith(" "):
-                sentence += " "
+                if cropped.size > 0:
+                    handz, _ = hd2.findHands(cropped, draw=False, flipType=True)
+                    if handz:
+                        pts = handz[0]['lmList']
+                        os_x = ((400 - w) // 2) - 15
+                        os_y = ((400 - h) // 2) - 15
 
-    # Encode white skeleton to Base64 image
-    _, buffer = cv2.imencode(".jpg", white_skeleton)
-    skeleton_base64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode("utf-8")
+                        connections = [
+                            (0, 1), (1, 2), (2, 3), (3, 4),
+                            (5, 6), (6, 7), (7, 8),
+                            (9, 10), (10, 11), (11, 12),
+                            (13, 14), (14, 15), (15, 16),
+                            (17, 18), (18, 19), (19, 20),
+                            (5, 9), (9, 13), (13, 17), (0, 5), (0, 17)
+                        ]
 
-    return {
-        "character": current_character,
-        "sentence": sentence,
-        "skeleton": skeleton_base64
-    }
+                        for p1, p2 in connections:
+                            cv2.line(white_canvas, (pts[p1][0] + os_x, pts[p1][1] + os_y),
+                                     (pts[p2][0] + os_x, pts[p2][1] + os_y), (0, 255, 0), 3)
 
-def clear_all():
-    global sentence, current_character, temp_char, char_hold_count
-    sentence = ""
-    current_character = ""
-    temp_char = ""
-    char_hold_count = 0
+                        for i in range(21):
+                            cv2.circle(white_canvas, (pts[i][0] + os_x, pts[i][1] + os_y), 2, (0, 0, 255), 1)
 
-def add_space():
-    global sentence
-    if sentence and not sentence.endswith(" "):
-        sentence += " "
+                        resized_input = cv2.resize(white_canvas, (128, 128))
+                        tensor = resized_input.reshape(1, 128, 128, 3)
+
+                        preds = model.predict(tensor, verbose=0)[0]
+                        char_idx = int(np.argmax(preds))
+                        confidence = float(np.max(preds))
+                        predicted_char = chr(ord('A') + char_idx)
+
+        # Base64 encode skeleton
+        _, buffer = cv2.imencode('.jpg', white_canvas)
+        skeleton_b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
+
+        # Generate spelling suggestions based on current word
+        suggestions = []
+        clean_word = (current_word or "").strip()
+        query = clean_word + (predicted_char if len(predicted_char) == 1 else "")
+        if query:
+            suggestions = dict_checker.suggest(query)
+
+        return {
+            "character": predicted_char,
+            "action": detected_action,
+            "confidence": round(confidence * 100, 2),
+            "skeleton": skeleton_b64,
+            "suggestions": suggestions[:4]
+        }
+
+    except Exception as e:
+        return {"error": str(e), "character": "No Hand Detected", "action": "none", "confidence": 0.0, "skeleton": None, "suggestions": []}

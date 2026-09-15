@@ -2,51 +2,132 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sign Language English Converter</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Language Translator</title>
     <style>
-        body {
-            background: linear-gradient(to right, #c6ffdd, #fbd786, #f7797d);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            min-height: 100vh;
-        }
-        .header {
-            background-color: #343a40;
-            color: white;
-            padding: 20px;
-            text-align: center;
-            border-bottom-left-radius: 20px;
-            border-bottom-right-radius: 20px;
-        }
-        .card {
-            margin-top: 60px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            background-color: white;
-        }
-        .btn-custom {
-            padding: 12px 25px;
-            font-size: 18px;
-            border-radius: 10px;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 2rem 1rem; }
+        h1 { margin-bottom: 0.5rem; font-size: 1.8rem; }
+        p.subtitle { color: #94a3b8; margin-bottom: 1.5rem; text-align: center; }
+        .container { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; width: 100%; max-width: 680px; }
+        .video-box { position: relative; width: 100%; aspect-ratio: 4/3; background: #1e293b; border-radius: 12px; overflow: hidden; border: 2px solid #334155; }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .badge { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.65); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; color: #38bdf8; }
+        .controls { display: flex; gap: 1rem; width: 100%; }
+        button { flex: 1; padding: 0.75rem 1rem; font-size: 1rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        .btn-start { background: #2563eb; color: white; }
+        .btn-start:hover { background: #1d4ed8; }
+        .btn-stop { background: #dc2626; color: white; }
+        .btn-stop:hover { background: #b91c1c; }
+        .card { width: 100%; background: #1e293b; border-radius: 12px; padding: 1.25rem; border: 1px solid #334155; text-align: center; }
+        .char-display { font-size: 3.5rem; font-weight: 800; color: #38bdf8; min-height: 4.5rem; }
+        .meta { color: #94a3b8; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Sign Language English Converter</h1>
-        <p class="lead">Empowering communication through technology</p>
-    </div>
 
-    <div class="container text-center">
-        <div class="card p-5">
-            <h2 class="mb-4">Welcome, {{ user }}</h2>
-            <p class="lead">Click below to start or stop the sign language recognition window.</p>
-            <div class="d-grid gap-2 col-6 mx-auto mt-4">
-                <a href="/start" class="btn btn-success btn-lg btn-custom">Start Application</a>
-                <a href="/stop" class="btn btn-warning btn-lg btn-custom">Stop Application</a>
-                <a href="/logout" class="btn btn-secondary btn-custom">Logout</a>
-            </div>
+    <h1>🤟 Sign Language Translator</h1>
+    <p class="subtitle">Real-time Computer Vision & Speech Synthesis for the DHH Community</p>
+
+    <div class="container">
+        <div class="video-box">
+            <video id="webcam" autoplay playsinline muted></video>
+            <div class="badge" id="statusBadge">Camera Idle</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-start" id="startBtn">Start Translation</button>
+            <button class="btn-stop" id="stopBtn" disabled>Stop</button>
+        </div>
+
+        <div class="card">
+            <div class="char-display" id="outputChar">-</div>
+            <div class="meta" id="confidence">Confidence: 0.0%</div>
         </div>
     </div>
+
+    <canvas id="captureCanvas" style="display: none;"></canvas>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('captureCanvas');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const outputChar = document.getElementById('outputChar');
+        const confidenceText = document.getElementById('confidence');
+        const statusBadge = document.getElementById('statusBadge');
+
+        let stream = null;
+        let timer = null;
+        let lastChar = "";
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+                video.srcObject = stream;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusBadge.textContent = "Detecting Gestures...";
+                statusBadge.style.color = "#4ade80";
+
+                timer = setInterval(captureAndSend, 300);
+            } catch (err) {
+                alert("Camera access denied or unavailable: " + err.message);
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+            }
+            clearInterval(timer);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusBadge.textContent = "Camera Stopped";
+            statusBadge.style.color = "#94a3b8";
+        });
+
+        function speak(text) {
+            if ('speechSynthesis' in window && text && text !== "-") {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        async function captureAndSend() {
+            if (!stream || video.videoWidth === 0) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const base64Image = canvas.toDataURL('image/jpeg', 0.6);
+
+            try {
+                const res = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
+                const data = await res.json();
+
+                if (data.prediction) {
+                    outputChar.textContent = data.prediction;
+                    confidenceText.textContent = `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+                    
+                    if (data.prediction !== lastChar && data.confidence > 0.70) {
+                        speak(data.prediction);
+                        lastChar = data.prediction;
+                    }
+                } else {
+                    confidenceText.textContent = data.error || "No hand in frame";
+                }
+            } catch (e) {
+                confidenceText.textContent = "Server communication error";
+            }
+        }
+    </script>
 </body>
 </html>
